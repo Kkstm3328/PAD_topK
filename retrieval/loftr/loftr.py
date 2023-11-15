@@ -38,13 +38,13 @@ class LoFTR(nn.Module):
         """
         # 1. Local Feature CNN
         data.update({
-            'bs': data['image0'].size(0),
-            'hw0_i': data['image0'].shape[2:], 'hw1_i': data['image1'].shape[2:]
+            'bs': data['image0'].size(0),       #batch size
+            'hw0_i': data['image0'].shape[2:], 'hw1_i': data['image1'].shape[2:]        #image0和image1的H和W
         })
 
         if data['hw0_i'] == data['hw1_i']:  # faster & better BN convergence
-            feats_c, feats_f = self.backbone(torch.cat([data['image0'], data['image1']], dim=0))
-            (feat_c0, feat_c1), (feat_f0, feat_f1) = feats_c.split(data['bs']), feats_f.split(data['bs'])
+            feats_c, feats_f = self.backbone(torch.cat([data['image0'], data['image1']], dim=0))        #backbone.forward(), c是coarse, f是fine
+            (feat_c0, feat_c1), (feat_f0, feat_f1) = feats_c.split(data['bs']), feats_f.split(data['bs'])       #过backbone后得到两图各自不同分辨率的特征图
         else:  # handle different input shapes
             (feat_c0, feat_f0), (feat_c1, feat_f1) = self.backbone(data['image0']), self.backbone(data['image1'])
 
