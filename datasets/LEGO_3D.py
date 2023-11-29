@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
-from torchvision import transforms as T
+from torchvision import transforms
 
 CLASS_NAMES = ['01Gorilla', '02Unicorn', '03Mallard', '04Turtle', '05Whale', '06Bird', '07Owl', '08Sabertooth', '09Swan',
                '10Sheep', '11Pig', '12Zalika', '13Pheonix', '14Elephant', '15Parrot', '16Cat', '17Scorpion', '18Obesobeso', '19Bear', '20Puppy']
@@ -23,18 +23,42 @@ class LEGODataset(Dataset):
         self.x, self.y, self.mask = self.load_dataset_folder()
 
     def __getitem__(self, idx):
+        """
+        x: <Tensor> shape==[1, 1, self.size, self.size]
+        y: <Tensor> shape==[1]
+        mask: <Tensor> shape==[1, 1, self.size, self.size]
+        xpath: <str>
+        maskpath: <str>
+        """
         x, y, mask = self.x[idx], self.y[idx], self.mask[idx]
-        x = imageio.imread(x)
-        x = cv2.resize(x, (self.size, self.size), interpolation=cv2.INTER_AREA).astype(np.uint8)
+        tfms = transforms.Compose([
+            transforms.Resize(self.size), 
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+        xpath = x
+        x = Image.open(x).convert("RGB")
+        x = tfms(x)
+        # x = x.resize((self.size, self.size), Image.NEAREST)
 
-
-        if y == 0:
-            mask = torch.zeros([1, self.size, self.size])
+        if y == 0:  # good
+            mask = torch.zeros([self.size, self.size])
+            mask = mask.unsqueeze(0)
+            mask_path = ""
         else:
-            mask = imageio.read(mask)
-            mask = cv2.resize(x, (self.size, self.size), interpolation=cv2.INTER_AREA)
+            # import pdb; pdb.set_trace()
+            transform_mask = transforms.Compose([
+                        transforms.Resize(self.size, Image.NEAREST),
+                        transforms.ToTensor()
+                        ])
+            mask_path = mask
+            mask = Image.open(mask)
+            mask = transform_mask(mask)
+            # mask = imageio.imread(mask, cv2.IMREAD_GRAYSCALE)     #原这里imread写成read
+            # # mask = cv2.resize(x, (self.size, self.size), interpolation=cv2.INTER_AREA)    #x?????
+            # mask = cv2.resize(mask, (self.size, self.size), interpolation=cv2.INTER_AREA)   #应该是这个resize产生了非0和255的值
 
-        return x, y, mask
+        return x, y, mask, xpath, mask_path
 
     def __len__(self):
         return len(self.x)

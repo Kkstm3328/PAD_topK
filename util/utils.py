@@ -24,7 +24,7 @@ def config_parser():
 
     parser.add_argument("--data_dir", type=str, default='./data/nerf_synthetic/',
                         help='path to folder with synthetic or llff data')
-    parser.add_argument('--config', is_config_file=True,
+    parser.add_argument('--config', is_config_file=True,        #!!!!!!!重要，这里指定了配置文件
                         help='config file path')
     parser.add_argument("--model_name", type=str,
                         help='name of the nerf model')
@@ -126,7 +126,8 @@ def config_parser():
     parser.add_argument("--class_name", type=str, default='01Gorilla',
                         help='LEGO-3D anomaly class')
     
-    
+    #yes, is me! my options
+    parser.add_argument("--K", type=int, default=1, help="retrival top-K pose similar image")
 
     return parser
 
@@ -282,12 +283,40 @@ def load_blender_AD(data_dir, model_name, obs_img_num, half_res, white_bkgd, met
     # image of type uint8
     return img_rgb, [H, W, focal],initial_pose,score_best
 
+def load_imgs_database(data_dir, cls_name, resize):
+    """
+    加载训练集中train内容供检索
+    data_dir: 数据集path
+    cls_name:
+    ---------------------------------
+    return:
+        imgs<ndarray>
+        imgs_path<list>
+    """
+    # import pdb; pdb.set_trace()
+    imgs = list()
+    train_path = os.path.join(data_dir, cls_name, "train", "good")
+    imgs_path = sorted([os.path.join(train_path, f)for f in os.listdir(train_path)if f.endswith('.png')])
+    tfms = transforms.Compose([
+        transforms.Resize(resize), 
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+    for img_path in imgs_path:
+        img = Image.open(img_path).convert("RGB")
+        img = tfms(img)
+        imgs.append(img)
+    stacked_tensor = torch.stack(imgs)
+    imgs = stacked_tensor.numpy().transpose((0, 2, 3, 1))   # nCHW -> nHWC
+    return imgs, imgs_path
+
 def load_blender_ad(data_dir, model_name,  half_res, white_bkgd):
     # load train nerf images and poses
     meta = {}
     with open(os.path.join(data_dir, str(model_name), 'transforms.json'), 'r') as fp:
         meta["train"] = json.load(fp)
         imgs = []
+        imgs_path = []
         poses = []
         for frame in meta["train"]['frames']:
             fname = os.path.join(data_dir, str(model_name), frame['file_path'])
@@ -301,6 +330,7 @@ def load_blender_ad(data_dir, model_name,  half_res, white_bkgd):
             # img = tensorify(img)
             pose = (np.array(frame['transform_matrix']))
             pose = np.array(pose).astype(np.float32)
+            imgs_path.append(fname)
             imgs.append(img)
             poses.append(pose)
             
@@ -325,7 +355,7 @@ def load_blender_ad(data_dir, model_name,  half_res, white_bkgd):
         for i in range(len(imgs)):
             imgs_half_res[i] = cv2.resize(imgs[i], (W, H), interpolation=cv2.INTER_AREA)
         imgs=imgs_half_res.astype(np.uint8)
-    return imgs,[H, W, focal],poses
+    return imgs,[H, W, focal],poses, imgs_path
 
 def find_nearest(imgs,obs_img,poses,method):
     # use lpips
@@ -729,7 +759,8 @@ def pose_retrieval_efficient(imgs,obs_img,poses):
 
     return poses[index]
 
-def pose_retrieval_loftr(imgs,obs_img,poses):
+def retrieval_loftr(imgs, obs_img, K):
+    # for一个个找应该可以用快排思路优化下
     # The default config uses dual-softmax.
     # The outdoor and indoor models share the same config.
     # You can change the default values like thr and coarse_match_type.
@@ -743,6 +774,7 @@ def pose_retrieval_loftr(imgs,obs_img,poses):
     img0 = torch.from_numpy(query_img)[None][None].cuda() / 255.
     max_match=-1
     max_index=-1
+    match_nums = []
     for i in range(len(imgs)):
         if imgs[i].shape[-1] == 3:
             gallery_img = cv2.cvtColor(imgs[i], cv2.COLOR_RGB2GRAY)
@@ -755,9 +787,43 @@ def pose_retrieval_loftr(imgs,obs_img,poses):
             mkpts0 = batch['mkpts0_f'].cpu().numpy()
             mkpts1 = batch['mkpts1_f'].cpu().numpy()
             mconf = batch['mconf'].cpu().numpy()
-        match_num=len(mconf)
-        if match_num>max_match:
-            max_match=match_num
-            max_index=i
-    return poses[max_index]
-        
+        match_nums.append(len(mconf))
+        # match_num=len(mconf) ####
+        # if match_num>max_match:
+        #     max_match=match_num
+        #     max_index=i
+    # import pdb; pdb.set_trace()
+    match_topK_indexes = np.array(match_nums).argsort()[-K:][::-1]
+    return match_topK_indexes
+
+class AverageMeter(object):     #UniAD的，好用
+    """Computes and stores the average and current value"""
+
+    def __init__(self, length=0):
+        self.length = length
+        self.reset()
+
+    def reset(self):
+        if self.length > 0:
+            self.history = []
+        else:
+            self.count = 0
+            self.sum = 0.0
+        self.val = 0.0
+        self.avg = 0.0
+
+    def update(self, val, num=1):   #val为loss值
+        if self.length > 0:
+            # currently assert num==1 to avoid bad usage, refine when there are some explict requirements
+            assert num == 1
+            self.history.append(val)
+            if len(self.history) > self.length:
+                del self.history[0]
+
+            self.val = self.history[-1]     #取history最后个元素
+            self.avg = np.mean(self.history)
+        else:
+            self.val = val
+            self.sum += val * num
+            self.count += num
+            self.avg = self.sum / self.count

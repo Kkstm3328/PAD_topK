@@ -1,7 +1,7 @@
 model_name = 10Sheep
 output_dir = ./output
 dataset_type = blender
-data_dir = ../data/LEGO-3D
+data_dir = ./data/LEGO-3D
 ckpt_dir = ./ckpts
 ckpt_name = 10Sheep
 
@@ -22,3 +22,6 @@ noise = None
 sigma = 0.01
 amount = 0.8
 delta_brightness = 0.
+
+K = 10
+resize = 224

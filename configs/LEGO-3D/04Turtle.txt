@@ -22,3 +22,6 @@ noise = None
 sigma = 0.01
 amount = 0.8
 delta_brightness = 0.
+
+K = 10
+resize = 224

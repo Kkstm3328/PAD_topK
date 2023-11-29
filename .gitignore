@@ -12,5 +12,9 @@ util/__pycache__/*
 
 retrieval/__pycache__/*
 retrieval/model/*
+retrieval/model.zip
+
+curtst.py
+result.csv
 
 .vscode

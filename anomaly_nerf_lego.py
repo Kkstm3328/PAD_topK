@@ -26,7 +26,7 @@ random.seed(seed)
 torch.manual_seed(seed)
 
 def run():
-
+    import pdb; pdb.set_trace()
     # Parameters
     parser = config_parser()
     args = parser.parse_args()
@@ -66,9 +66,11 @@ def run():
             mask = (mask.cpu().numpy()/255.0).astype(np.uint8)
             gt_mask_list.extend(mask)
 
-            obs_img = x.cpu().numpy().squeeze(axis=0)
+            obs_img = x.cpu().numpy().squeeze(axis=0)       #就是query
             # Find the start pose by looking for the most similar images
-            start_pose = pose_retrieval_loftr(imgs, obs_img, poses)
+            import pdb; pdb.set_trace()
+            match_topK_indexes = pose_retrieval_loftr(imgs, obs_img, args.K)
+            
             # find points of interest of the observed image
             # xy pixel coordinates of points of interest (N x 2)
             POI = find_POI(obs_img, DEBUG)
@@ -93,18 +95,20 @@ def run():
                 set(tuple(point) for point in POI)
             not_POI = np.array([list(point) for point in not_POI]).astype(int)
 
-            # Load NeRF Model
-            render_kwargs = load_nerf(args, device)
-            bds_dict = {
-                'near': near,
-                'far': far,
-            }
-            render_kwargs.update(bds_dict)
+            # # Load NeRF Model
+            # render_kwargs = load_nerf(args, device)
+            # bds_dict = {
+            #     'near': near,
+            #     'far': far,
+            # }
+            # render_kwargs.update(bds_dict)
 
-            # Create pose transformation model
-            start_pose = torch.Tensor(start_pose).to(device)
-            cam_transf = camera_transf().to(device)
-            # cam_transf=torch.nn.DataParallel(cam_transf)
+            # # Create pose transformation model
+            # start_pose = torch.Tensor(start_pose).to(device)
+            # cam_transf = camera_transf().to(device)
+            # # cam_transf=torch.nn.DataParallel(cam_transf)
+
+            ######优化器参数是什么？还没定!!!!!!!!!!!!!!!
             optimizer = torch.optim.Adam(
                 params=cam_transf.parameters(), lr=lrate, betas=(0.9, 0.999))
             testsavedir = os.path.join(
@@ -184,8 +188,8 @@ def run():
             # quality = 8 for mp4 format
             imageio.mimwrite(os.path.join(
                 testsavedir, 'video.gif'), gif_imgs, fps=8)
-            imageio.imwrite(os.path.join(testsavedir, 'ref.png'), ref)
-            imageio.imwrite(os.path.join(testsavedir, 'rgb8.png'), rgb8)
+            imageio.imwrite(os.path.join(testsavedir, 'ref.png'), ref)      #ref为query图像
+            imageio.imwrite(os.path.join(testsavedir, 'rgb8.png'), rgb8)    #rgb8为重建图像
             index = index+1
 
 DEBUG = False
