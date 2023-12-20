@@ -16,118 +16,51 @@ from retrieval.retrieval import *
 from easydict import EasyDict
 import yaml
 
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_auc_score
+import logging
 
 def config_parser():
 
     import configargparse
     parser = configargparse.ArgumentParser()
 
-    parser.add_argument("--data_dir", type=str, default='./data/nerf_synthetic/',
-                        help='path to folder with synthetic or llff data')
     parser.add_argument('--config', is_config_file=True,        #!!!!!!!重要，这里指定了配置文件
                         help='config file path')
-    parser.add_argument("--model_name", type=str,
-                        help='name of the nerf model')
-    parser.add_argument("--output_dir", type=str, default='./output/',
-                        help='where to store output images/videos')
+    parser.add_argument("--data_dir", type=str, default='./data/nerf_synthetic/',
+                        help='path to data')
     parser.add_argument("--ckpt_dir", type=str, default='./ckpts',
                         help='folder with saved checkpoints')
     parser.add_argument("--ckpt_name", type=str, 
                         help='name of ckpt')
-
-    # training options
-    parser.add_argument("--netdepth", type=int, default=8,
-                        help='layers in network')
-    parser.add_argument("--netwidth", type=int, default=256,
-                        help='channels per layer')
-    parser.add_argument("--netdepth_fine", type=int, default=8,
-                        help='layers in fine network')
-    parser.add_argument("--netwidth_fine", type=int, default=256,
-                        help='channels per layer in fine network')
-    parser.add_argument("--chunk", type=int, default=1024*32,  # 1024*32
-                        help='number of rays processed in parallel, decrease if running out of memory')
-    parser.add_argument("--netchunk", type=int, default=1024*64,  # 1024*64
-                        help='number of pts sent through network in parallel, decrease if running out of memory')
-
-    # rendering options
-    parser.add_argument("--N_samples", type=int, default=64,
-                        help='number of coarse samples per ray')
-    parser.add_argument("--N_importance", type=int, default=0,
-                        help='number of additional fine samples per ray')
-    parser.add_argument("--perturb", type=float, default=0.,
-                        help='set to 0. for no jitter, 1. for jitter')
-    parser.add_argument("--use_viewdirs", action='store_true',
-                        help='use full 5D input instead of 3D')
-    parser.add_argument("--i_embed", type=int, default=0,
-                        help='set 0 for default positional encoding, -1 for none')
-    parser.add_argument("--multires", type=int, default=10,
-                        help='log2 of max freq for positional encoding (3D location)')
-    parser.add_argument("--multires_views", type=int, default=4,
-                        help='log2 of max freq for positional encoding (2D direction)')
-    parser.add_argument("--raw_noise_std", type=float, default=0.,
-                        help='std dev of noise added to regularize sigma_a output, 1e0 recommended')
-    parser.add_argument("--render_factor", type=int, default=0,
-                        help='downsampling factor to speed up rendering, set 4 or 8 for fast preview')
-
-    # dataset options
-    parser.add_argument("--dataset_type", type=str, default='llff',
-                        help='options: llff / blender / deepvoxels')
-
-    # blender options
-    parser.add_argument("--white_bkgd", action='store_true',
-                        help='set to render synthetic data on a white bkgd (always use for dvoxels)')
-    parser.add_argument("--half_res", action='store_true',
-                        help='load blender synthetic data at 400x400 instead of 800x800')
-
-    # llff options
-    parser.add_argument("--llffhold", type=int, default=8,
-                        help='will take every 1/N images as LLFF test set, paper uses 8')
-    parser.add_argument("--factor", type=int, default=8,
-                        help='downsample factor for LLFF images')
-    parser.add_argument("--no_ndc", action='store_true',
-                        help='do not use normalized device coordinates (set for non-forward facing scenes)')
-    parser.add_argument("--lindisp", action='store_true',
-                        help='sampling linearly in disparity rather than depth')
-    parser.add_argument("--spherify", action='store_true',
-                        help='set for spherical 360 scenes')
-
-    # iNeRF options
-    parser.add_argument("--obs_img_num", type=int, default=0,
-                        help='Number of an observed image')
-    parser.add_argument("--dil_iter", type=int, default=1,
-                        help='Number of iterations of dilation process')
-    parser.add_argument("--kernel_size", type=int, default=3,
-                        help='Kernel size for dilation')
-    parser.add_argument("--batch_size", type=int, default=2048,
-                        help='Number of sampled rays per gradient step')
-    parser.add_argument("--lrate", type=float, default=0.01,
-                        help='Initial learning rate')
-    parser.add_argument("--sampling_strategy", type=str, default='random',
-                        help='options: random / interest_point / interest_region')
-    # parameters to define initial pose
-    parser.add_argument("--delta_psi", type=float, default=0.0,
-                        help='Rotate camera around x axis')
-    parser.add_argument("--delta_phi", type=float, default=0.0,
-                        help='Rotate camera around z axis')
-    parser.add_argument("--delta_theta", type=float, default=0.0,
-                        help='Rotate camera around y axis')
-    parser.add_argument("--delta_t", type=float, default=0.0,
-                        help='translation of camera (negative = zoom in)')
-    # apply noise to observed image
-    parser.add_argument("--noise", type=str, default='None',
-                        help='options: gauss / salt / pepper / sp / poisson')
-    parser.add_argument("--sigma", type=float, default=0.01,
-                        help='var = sigma^2 of applied noise (variance = std)')
-    parser.add_argument("--amount", type=float, default=0.05,
-                        help='proportion of image pixels to replace with noise (used in ‘salt’, ‘pepper’, and ‘s&p)')
-    parser.add_argument("--delta_brightness", type=float, default=0.0,
-                        help='reduce/increase brightness of the observed image, value is in [-1...1]')
+    parser.add_argument("--log_dir", type=str, default="./log")
+    parser.add_argument("--retrieval_ans_dir", type=str, default="./retrieval_ans_dir/LEGO-3D",
+                        help="save and load for LoFTR retrieval result")
     
-    parser.add_argument("--class_name", type=str, default='01Gorilla',
-                        help='LEGO-3D anomaly class')
-    
+    parser.add_argument('--data_type', type=str, default='mvtec')
+    parser.add_argument('--dataset_path', type=str, default='./data/LEGO-3D')
+
+    parser.add_argument("--epoch", type=int, default=1)
+    parser.add_argument("--lrate", type=float, default=0.01, help='Initial learning rate')
+    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--resize', type=int, default=400)
+
+    # parser.add_argument('--img_resize', type=int, default=128)
+    # parser.add_argument('--crop_size', type=int, default=128)
+    parser.add_argument('--seed', type=int, default=None)
+
     #yes, is me! my options
+    parser.add_argument("--feature_h", type=int, help="height of neck output features")
+    parser.add_argument("--feature_w", type=int, help="width of neck output features")
+    parser.add_argument("--neck_out_channel_dim", type=int, help="channel_dim of neck output features")
+
+    parser.add_argument("--class_name", type=str, default='01Gorilla', help='LEGO-3D anomaly class')
     parser.add_argument("--K", type=int, default=1, help="retrival top-K pose similar image")
+    parser.add_argument("--neighbor_size", type=int, help="neighbor for unmask")
+    parser.add_argument("--hidden_dim", type=int, default=256, help="hidden_dim, channel_dim in TransformerEncoder")
+    parser.add_argument("--num_encoder_layers", type=int, help="number of encoder_layers")
+    parser.add_argument("--dim_feedforward", type=int, default=2048, help="dim_feedforward in TransformerEncoderLayer")
+
 
     return parser
 
@@ -760,7 +693,6 @@ def pose_retrieval_efficient(imgs,obs_img,poses):
     return poses[index]
 
 def retrieval_loftr(imgs, obs_img, K):
-    # for一个个找应该可以用快排思路优化下
     # The default config uses dual-softmax.
     # The outdoor and indoor models share the same config.
     # You can change the default values like thr and coarse_match_type.
@@ -827,3 +759,106 @@ class AverageMeter(object):     #UniAD的，好用
             self.sum += val * num
             self.count += num
             self.avg = self.sum / self.count
+
+def anomaly_score_map(score, path):
+    plt.close('all')
+    # import pdb; pdb.set_trace()
+    new_path = path[0]
+    # 使用 os.path 来获取文件路径的各个部分
+    directory, filename = os.path.split(new_path)
+    # 分割目录并找到以 'LEGO-3D' 开始的部分
+    directory_parts = directory.split(os.path.sep)
+    lego_3d_start = next(part for part in directory_parts if part.startswith('LEGO-3D'))
+
+    new_path = os.path.join(directory_parts[0], 'score_map', directory_parts[2], directory_parts[3], directory_parts[4], directory_parts[5], filename)
+    new_dir = os.path.dirname(new_path)
+    if not os.path.exists(new_dir):
+        os.makedirs(new_dir)
+
+    # 假设 anomaly_scores 是一个 224x224 的 PyTorch 张量，表示异常得分
+    # 示例数据，实际应用中替换为您的张量数据
+    anomaly_scores = torch.tensor(score).squeeze(0)
+
+    # 创建热力图
+    plt.figure(figsize=(8, 8))
+    plt.imshow(anomaly_scores.cpu().numpy(), cmap='hot', interpolation='nearest')
+
+    # 添加颜色条
+    plt.colorbar()
+
+    # 添加标签和标题
+    plt.title('异常得分热力图')
+    plt.xlabel('列编号')
+    plt.ylabel('行编号')
+
+    # 保存热力图为图片文件（可以根据需要选择不同的文件格式，例如 PNG、JPEG、PDF 等）
+    plt.savefig(new_path)
+
+    # 显示热力图
+    # plt.show()
+
+
+def preRetrieval(dataloader, imgs_database, retrieval_ans_dir, class_name, save_path, K=15):
+    """
+        离线检索对应imgs
+        存储<xpath, ndarray[K]>
+        ndarray存储K个imgs_database的下标
+    """
+    matched_dics = {}
+    # import pdb; pdb.set_trace()
+    for i, (x, xpath, *_) in enumerate(dataloader):
+        # x: b c h w
+        print(x.device)
+        cur_batch_size = x.shape[0]
+        for j in range(cur_batch_size):
+            # if xpath[j] == "./data/LEGO-3D/01Gorilla/test/Stains/21.png":
+            #     import pdb; pdb.set_trace()
+            obs_img = x[j].cpu().numpy().transpose((1, 2, 0))   # h w c
+            match_indexes = retrieval_loftr(imgs_database, obs_img, K)  #ndarray[K]
+            matched_dics[xpath[j]] = match_indexes
+            print("preRetrievaling: {}\t{}/{}".format(xpath[j], (i*cur_batch_size)+j+1, len(dataloader)*cur_batch_size))
+    
+    if not os.path.exists(retrieval_ans_dir):
+        os.makedirs(retrieval_ans_dir)
+    with open(save_path, 'w') as file:
+        for xpath, np_array in matched_dics.items():
+            np_array_str = ','.join(map(str, np_array))  # 将 np_array 转换为逗号分隔的字符串
+            file.write(f"{xpath}:{np_array_str}\n")
+
+def load_Retrieval_dics(path):
+    """
+        return dics: <xpath, ndarray[K]>
+    """
+    matched_dics = {}
+    with open(path, 'r') as file:
+        for line in file:
+            key, value = line.strip().split(':')
+            np_array = np.array(list(map(int, value.split(','))))  # 将字符串转换回 numpy 数组
+            matched_dics[key] = np_array
+    return matched_dics
+
+def cal_performance(preds, masks, labels):
+    preds = torch.stack(preds).cpu().numpy()    # n 1 h w
+    masks = torch.stack(masks).cpu().numpy()
+    labels = [item.cpu().numpy() for item in labels]
+
+    # 将预测的图像列表和 ground truth 的 mask 列表展平
+    pred_array = preds.flatten()
+    mask_array = masks.flatten()
+
+    # 计算像素级 AUROC
+    pixel_auroc = roc_auc_score(mask_array, pred_array)
+
+    image_scores = [np.max(pred[0]) for pred in preds]
+    # import pdb; pdb.set_trace()
+    image_auroc = roc_auc_score(labels, image_scores)
+
+    formatted_labels = f'{len(labels)} items: {labels}'
+    formatted_img_scores = f'{len(image_scores)} items: {image_scores}'
+    logging.info(
+        "labels:\t\t:{0}".format(formatted_labels)
+    )
+    logging.info(
+        "img_score:\t{0}".format(formatted_img_scores)
+    )
+    return pixel_auroc, image_auroc

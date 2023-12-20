@@ -26,6 +26,7 @@ class MFCN(nn.Module):
         ]
 
     def forward(self, input):
+        # import pdb; pdb.set_trace()
         features = input["features"]
         assert len(self.inplanes) == len(features)
 

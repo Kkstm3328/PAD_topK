@@ -8,6 +8,6 @@ path="configs/LEGO-3D/"
 len=${#cfgs[@]}
 
 for ((i=0; i<$len; i++)); do
-    python eval.py --config "$path${cfgs[i]}" --class_name "${clses[i]}"
+    python train.py --config "$path${cfgs[i]}" --class_name "${clses[i]}"
 
 done

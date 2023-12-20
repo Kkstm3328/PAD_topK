@@ -1,27 +1,20 @@
-model_name = 07Owl
-output_dir = ./output
-dataset_type = blender
 data_dir = ./data/LEGO-3D
-ckpt_dir = ./ckpts
+ckpt_dir = ./ckpts/LEGO-3D
 ckpt_name = 07Owl
+log_dir = ./log
+retrieval_ans_dir = ./retrieval_ans/LEGO-3D
 
-use_viewdirs = True
-white_bkgd = True
-N_samples = 64
-N_importance = 64
-half_res = True
-
-obs_img_num = 1
-dil_iter = 3
-kernel_size = 5
-batch_size = 3072
+epoch = 10
 lrate = 0.01
-sampling_strategy = interest_regions
+batch_size = 20
+resize = 224
 
-noise = None
-sigma = 0.01
-amount = 0.8
-delta_brightness = 0.
+feature_h = 14
+feature_w = 14
+neck_out_channel_dim = 272
 
 K = 10
-resize = 224
+neighbor_size = 7
+hidden_dim = 256
+num_encoder_layers = 4
+dim_feedforward = 2048

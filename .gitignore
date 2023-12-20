@@ -1,8 +1,12 @@
 output/*
 data/*
 ckpts/*
+log/*
 
 __pycache__/*
+models/__pycache__/*
+models/backbones/__pycache__/*
+models/backbones/efficientnet/__pycache__/*
 datasets/__pycache__/*
 retrieval/loftr/__pycache__/*
 retrieval/loftr/backbone/__pycache__/*
@@ -14,7 +18,12 @@ retrieval/__pycache__/*
 retrieval/model/*
 retrieval/model.zip
 
+retrieval_ans/*
+
 curtst.py
 result.csv
+score_map/*
+eval_old.py
+preds/*
 
 .vscode
